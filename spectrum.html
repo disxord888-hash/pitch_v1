@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PICH - スペクトラム表示</title>
+    <meta name="description" content="リアルタイム周波数スペクトラム表示。マイク入力をフルスクリーンで可視化。">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="spectrum.css">
+</head>
+
+<body>
+    <canvas id="spectrum-canvas"></canvas>
+
+    <!-- 周波数ラベルオーバーレイ -->
+    <div class="freq-labels" id="freq-labels"></div>
+
+    <!-- 上位3音程表示 -->
+    <div class="pitch-ranks" id="pitch-ranks">
+        <div class="pitch-rank rank-1st" id="pitch-rank-1">
+            <div class="rank-badge-num">1</div>
+            <div class="rank-info">
+                <span class="rank-note-name" id="rank-note-1">--</span>
+                <span class="rank-freq-val" id="rank-freq-1">-- Hz</span>
+                <span class="rank-vocal" id="rank-vocal-1">---</span>
+            </div>
+            <div class="rank-bar-wrap">
+                <div class="rank-bar" id="rank-bar-1"></div>
+            </div>
+        </div>
+        <div class="pitch-rank rank-2nd" id="pitch-rank-2">
+            <div class="rank-badge-num">2</div>
+            <div class="rank-info">
+                <span class="rank-note-name" id="rank-note-2">--</span>
+                <span class="rank-freq-val" id="rank-freq-2">-- Hz</span>
+                <span class="rank-vocal" id="rank-vocal-2">---</span>
+            </div>
+            <div class="rank-bar-wrap">
+                <div class="rank-bar" id="rank-bar-2"></div>
+            </div>
+        </div>
+        <div class="pitch-rank rank-3rd" id="pitch-rank-3">
+            <div class="rank-badge-num">3</div>
+            <div class="rank-info">
+                <span class="rank-note-name" id="rank-note-3">--</span>
+                <span class="rank-freq-val" id="rank-freq-3">-- Hz</span>
+                <span class="rank-vocal" id="rank-vocal-3">---</span>
+            </div>
+            <div class="rank-bar-wrap">
+                <div class="rank-bar" id="rank-bar-3"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- dBスケール表示 -->
+    <div class="db-scale" id="db-scale"></div>
+
+    <!-- コントロールオーバーレイ -->
+    <div class="controls-overlay" id="controls-overlay">
+        <div class="controls-inner">
+            <div class="brand">
+                <span class="brand-logo">PICH</span>
+                <span class="brand-sub">SPECTRUM</span>
+            </div>
+            <button id="start-btn" class="glow-btn">
+                <svg viewBox="0 0 24 24" width="24" height="24">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"
+                        fill="currentColor" />
+                </svg>
+                マイクを開始
+            </button>
+            <a href="index.html" class="back-link">← ピッチ検出に戻る</a>
+        </div>
+    </div>
+
+    <!-- ミニコントロール（録音中） -->
+    <div class="mini-controls" id="mini-controls">
+        <div class="mini-status">
+            <span class="rec-dot"></span>
+            <span>LIVE</span>
+        </div>
+        <div class="mini-buttons">
+            <select id="fft-size-select" class="mini-select" title="FFT サイズ">
+                <option value="2048">2K</option>
+                <option value="4096" selected>4K</option>
+                <option value="8192">8K</option>
+                <option value="16384">16K</option>
+            </select>
+            <select id="scale-select" class="mini-select" title="周波数スケール">
+                <option value="log" selected>対数</option>
+                <option value="linear">線形</option>
+            </select>
+            <select id="color-select" class="mini-select" title="カラーテーマ">
+                <option value="neon" selected>ネオン</option>
+                <option value="fire">ファイア</option>
+                <option value="ice">アイス</option>
+                <option value="rainbow">レインボー</option>
+                <option value="mono">モノクロ</option>
+            </select>
+            <select id="viz-select" class="mini-select" title="表示モード">
+                <option value="bars" selected>バー</option>
+                <option value="mirror">ミラー</option>
+                <option value="circular">サーキュラー</option>
+                <option value="waterfall">ウォーターフォール</option>
+            </select>
+            <button id="stop-btn" class="stop-btn" title="停止">
+                <svg viewBox="0 0 24 24" width="18" height="18">
+                    <rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" />
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <!-- 高音域ログ -->
+    <div class="high-log-panel" id="high-log-panel">
+        <div class="high-log-header">
+            <span class="high-log-title">🔥 hihihiE (E7) 以上ログ</span>
+            <span class="high-log-count" id="high-log-count">0</span>
+        </div>
+        <div class="high-log-list" id="high-log-list">
+            <div class="high-log-empty">検出待ち...</div>
+        </div>
+    </div>
+
+    <script src="spectrum.js"></script>
+</body>
+
+</html>

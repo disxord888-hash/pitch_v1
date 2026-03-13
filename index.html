@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pich - プロフェッショナル・ピッチディテクター</title>
+    <meta name="description" content="20000Hzまで対応した高精度ピッチ検出ツール。オフセット設定、ボーカル音域表示機能搭載。">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="app-container">
+        <header>
+            <div class="logo">PICH</div>
+            <div class="header-right">
+                <a href="spectrum.html" class="spectrum-link" title="スペクトラム表示">🎛️ SPECTRUM</a>
+                <div class="status-badge" id="status-badge">READY</div>
+            </div>
+        </header>
+
+        <main>
+            <section class="display-section">
+                <div class="main-display">
+                    <div class="display-label">調整後</div>
+                    <div class="note-display" id="note-display">--</div>
+                    <div class="frequency-display">
+                        <span id="freq-value">0.00</span> <span class="unit">Hz</span>
+                    </div>
+                    <div class="vocal-range" id="vocal-range">---</div>
+                </div>
+
+                <div class="sub-display">
+                    <div class="sub-card">
+                        <div class="display-label">調整前</div>
+                        <div class="sub-note" id="original-note-display">--</div>
+                        <div class="sub-freq"><span id="original-freq-value">0.00</span> Hz</div>
+                        <div class="sub-range" id="original-vocal-range">---</div>
+                    </div>
+                </div>
+
+                <div class="range-stats-section">
+                    <div class="range-stats-card min-card">
+                        <div class="display-label">最低音 (2秒間)</div>
+                        <div class="stat-note" id="min-note-display">--</div>
+                        <div class="stat-range" id="min-range-display">---</div>
+                    </div>
+                    <div class="range-stats-card max-card">
+                        <div class="display-label">最高音 (2秒間)</div>
+                        <div class="stat-note" id="max-note-display">--</div>
+                        <div class="stat-range" id="max-range-display">---</div>
+                    </div>
+                </div>
+
+                <div class="range-stats-section" style="margin-top: 16px;">
+                    <div class="range-stats-card db-card" style="border-color: rgba(0,242,255,0.3);">
+                        <div class="display-label">音圧 dB-Z (フラット)</div>
+                        <div class="stat-note"><span id="current-db-z">--</span><span style="font-size:16px;"> dB</span>
+                        </div>
+                        <div class="stat-range" style="color:var(--text-main);">最高: <span id="max-db-z">--</span> dB
+                        </div>
+                    </div>
+                    <div class="range-stats-card db-card" style="border-color: rgba(255,0,85,0.3);">
+                        <div class="display-label">音圧 dB-A (聴感補正)</div>
+                        <div class="stat-note"><span id="current-db-a">--</span><span style="font-size:16px;"> dB</span>
+                        </div>
+                        <div class="stat-range" style="color:var(--text-main);">最高: <span id="max-db-a">--</span> dB
+                        </div>
+                    </div>
+                </div>
+
+                <div class="session-stats-container" id="session-stats-container">
+                    <div class="display-label" id="session-status-label">セッション記録 (待機中)</div>
+                    <div class="session-stats-grid ranking-layout">
+                        <div class="session-stat-column">
+                            <span class="session-stat-label">LOW RANKING</span>
+                            <div id="session-min-list" class="rank-list">
+                                <div class="rank-empty">--</div>
+                            </div>
+                        </div>
+                        <div class="session-stat-column">
+                            <span class="session-stat-label">HIGH RANKING</span>
+                            <div id="session-max-list" class="rank-list">
+                                <div class="rank-empty">--</div>
+                            </div>
+                        </div>
+                        <div class="session-stat-column">
+                            <span class="session-stat-label">LONG RANKING</span>
+                            <div id="session-long-list" class="rank-list">
+                                <div class="rank-empty">--</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="session-total-range">
+                        最高音域幅: <span id="session-range-width">0.00</span> オクターブ
+                    </div>
+                    <div class="session-actions">
+                        <button id="share-btn" class="share-btn" disabled title="セッションを停止すると共有可能になります">
+                            <span class="icon">
+                                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                    <path
+                                        d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92c0-1.61-1.31-2.92-2.92-2.92zM18 4c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zM6 13c-.55 0-1-.45-1-1s.45-1-1 1-1 .45 1 1 .45 1 1 1zM18 20c-.55 0-1-.45-1-1s.45-1-1 1-1 .45 1 1 .45 1 1 1z" />
+                                </svg>
+                            </span>
+                            結果を共有
+                        </button>
+                        <button id="reset-stats-btn" class="reset-stats-btn" title="これまでのセッション記録をすべて削除します">
+                            記録をクリア
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <section class="visualizer-section">
+                <canvas id="visualizer"></canvas>
+            </section>
+
+            <section class="graph-section">
+                <div class="display-label">ピッチ履歴</div>
+                <div class="graph-container">
+                    <canvas id="pitch-graph"></canvas>
+                </div>
+            </section>
+
+            <section class="controls-section">
+                <div class="control-grid">
+                    <div class="control-group">
+                        <label for="offset-slider">ピッチ・オフセット (半音): <span id="offset-value">0</span></label>
+                        <input type="range" id="offset-slider" min="-12" max="12" value="0" step="1">
+                    </div>
+                    <div class="control-group">
+                        <label for="duration-slider">記録する最低秒数: <span id="duration-threshold-value">0.20</span>s</label>
+                        <input type="range" id="duration-slider" min="0.1" max="2.0" value="0.2" step="0.1">
+                    </div>
+                </div>
+
+                <div class="button-group">
+                    <button id="start-btn" class="primary-btn">マイクを開始</button>
+                    <button id="stop-btn" class="secondary-btn" disabled>停止</button>
+                </div>
+            </section>
+
+            <section class="info-section">
+                <div class="info-card">
+                    <h3>高周波対応</h3>
+                    <p>最大 20,000 Hz までの広い周波数帯域をカバーします。</p>
+                </div>
+                <div class="info-card">
+                    <h3>オフセット調整</h3>
+                    <p>移調楽器や特定のチューニングに合わせて -12〜+12 半音のオフセットが可能です。</p>
+                </div>
+            </section>
+
+            <section class="log-section">
+                <div class="display-label">hihihiA (A6) 以上 記録ログ</div>
+                <div id="high-pitch-log" class="log-container">
+                    <div class="log-placeholder">高音域の検出待ち...</div>
+                </div>
+            </section>
+
+        </main>
+
+        <footer>
+            <p>&copy; 2026 PICH Pitch Detection System</p>
+        </footer>
+    </div>
+    <script src="app.js"></script>
+</body>
+
+</html>
