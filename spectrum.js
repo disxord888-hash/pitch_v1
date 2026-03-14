@@ -22,6 +22,7 @@ const vizSelect = document.getElementById('viz-select');
 const freqLabelsContainer = document.getElementById('freq-labels');
 const dbScaleContainer = document.getElementById('db-scale');
 const pitchRanks = document.getElementById('pitch-ranks');
+const spectrumPanel = document.getElementById('spectrum-panel');
 
 // ランク表示要素
 const rankNotes = [
@@ -59,27 +60,30 @@ const waterfallMaxRows = 300;
 // スムージング用の前フレームデータ
 let smoothedData = null;
 
-// === 高音域ログ関連 ===
-const highLogPanel = document.getElementById('high-log-panel');
+// === ピッチログ関連 ===
+const highLogPanel = document.getElementById('log-panel');
 const highLogList = document.getElementById('high-log-list');
 const highLogCount = document.getElementById('high-log-count');
 
-// hihihiE (E7) = MIDIノート番号 100
-const HIGH_NOTE_THRESHOLD = 100;
 let isHighPitchActive = false;
 let highPitchStartTime = 0;
 let maxNoteInBurst = 0;
 let maxFreqInBurst = 0;
-let burstRank2 = null; // {noteNum, freq}
+let maxDbInBurst = -Infinity;
+let burstRank2 = null; // {noteNum, freq, db}
 let burstRank3 = null;
 let logItemCount = 0;
 
 // === キャンバスリサイズ ===
 function resizeCanvas() {
-    canvas.width = window.innerWidth * window.devicePixelRatio;
-    canvas.height = window.innerHeight * window.devicePixelRatio;
-    canvas.style.width = window.innerWidth + 'px';
-    canvas.style.height = window.innerHeight + 'px';
+    const rect = spectrumPanel.getBoundingClientRect();
+    const w = rect.width;
+    const h = rect.height;
+
+    canvas.width = w * window.devicePixelRatio;
+    canvas.height = h * window.devicePixelRatio;
+    canvas.style.width = w + 'px';
+    canvas.style.height = h + 'px';
     generateFreqLabels();
     generateDbScale();
 }
@@ -115,7 +119,7 @@ function freqToNoteNum(freq) {
 // === 周波数ラベル生成 ===
 function generateFreqLabels() {
     freqLabelsContainer.innerHTML = '';
-    const w = window.innerWidth;
+    const w = spectrumPanel.clientWidth;
     const freqs = [20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000];
 
     freqs.forEach(f => {
@@ -136,7 +140,7 @@ function generateFreqLabels() {
 // === dBスケール生成 ===
 function generateDbScale() {
     dbScaleContainer.innerHTML = '';
-    const h = window.innerHeight - 30;
+    const h = spectrumPanel.clientHeight - 30;
     const steps = [-10, -20, -30, -40, -50, -60, -70, -80];
 
     steps.forEach(db => {
@@ -144,7 +148,7 @@ function generateDbScale() {
         if (y < 10 || y > h - 10) return;
         const label = document.createElement('div');
         label.className = 'db-label';
-        label.style.bottom = (window.innerHeight - y) + 'px';
+        label.style.bottom = (spectrumPanel.clientHeight - y) + 'px';
         label.textContent = db + 'dB';
         dbScaleContainer.appendChild(label);
     });
@@ -211,12 +215,17 @@ function detectTopPeaks(freqData, binCount) {
     const minBin = Math.floor(20 * binCount / nyquist);   // 20Hz
     const maxBin = Math.min(binCount - 1, Math.floor(20000 * binCount / nyquist)); // 20kHz
 
+    // dB変換用の範囲
+    const minDb = analyser.minDecibels; // デフォルト: -100
+    const maxDb = analyser.maxDecibels; // デフォルト: -30
+
     // すべてのローカルピークを検出
     const peaks = [];
     for (let i = minBin + 1; i < maxBin - 1; i++) {
         if (freqData[i] > freqData[i - 1] && freqData[i] > freqData[i + 1] && freqData[i] > 80) {
             const freq = (i / binCount) * nyquist;
-            peaks.push({ bin: i, value: freqData[i], freq: freq });
+            const db = (freqData[i] / 255) * (maxDb - minDb) + minDb;
+            peaks.push({ bin: i, value: freqData[i], freq: freq, db: db });
         }
     }
 
@@ -263,7 +272,7 @@ function updatePitchRanks(freqData, binCount) {
             rankVocals[i].textContent = vocalRange.split(' / ')[0];
             rankBars[i].style.width = strength + '%';
 
-            rankInfos.push({ noteNum, freq: p.freq });
+            rankInfos.push({ noteNum, freq: p.freq, db: p.db });
         } else {
             rankNotes[i].textContent = '--';
             rankFreqs[i].textContent = '-- Hz';
@@ -573,19 +582,22 @@ vizSelect.addEventListener('change', (e) => {
     smoothedData = null;
 });
 
-// === 高音域ログ機能 ===
+// === ピッチログ機能（0Hz〜20kHz, -55dB以上） ===
 
 function trackHighPitch(r1, r2, r3) {
+    const db = r1 ? (r1.db !== undefined ? r1.db : -Infinity) : -Infinity;
+    const hasSignal = r1 !== null && db >= -55;
     const noteNum = r1 ? r1.noteNum : -1;
     const freq = r1 ? r1.freq : 0;
 
-    if (noteNum >= HIGH_NOTE_THRESHOLD) {
+    if (hasSignal) {
         if (!isHighPitchActive) {
-            // 高音域の検出開始
+            // ピッチ検出開始 (-55dB超え)
             isHighPitchActive = true;
             highPitchStartTime = performance.now();
             maxNoteInBurst = noteNum;
             maxFreqInBurst = freq;
+            maxDbInBurst = db;
             burstRank2 = r2 || null;
             burstRank3 = r3 || null;
         } else {
@@ -596,9 +608,13 @@ function trackHighPitch(r1, r2, r3) {
                 burstRank2 = r2 || null;
                 burstRank3 = r3 || null;
             }
+            // dBは最大値を追跡
+            if (db > maxDbInBurst) {
+                maxDbInBurst = db;
+            }
         }
     } else {
-        // 高音域を抜けた→ログ確定
+        // ピッチ途切れ→ログ確定
         finalizeHighPitchLog();
     }
 }
@@ -608,9 +624,9 @@ function finalizeHighPitchLog() {
 
     const duration = (performance.now() - highPitchStartTime) / 1000;
 
-    // 0.05秒以下はノイズとして無視
-    if (duration > 0.05) {
-        addHighLogItem(maxNoteInBurst, maxFreqInBurst, duration, burstRank2, burstRank3);
+    // 0.1秒以下はノイズとして無視
+    if (duration > 0.1) {
+        addHighLogItem(maxNoteInBurst, maxFreqInBurst, duration, burstRank2, burstRank3, maxDbInBurst);
     }
 
     isHighPitchActive = false;
@@ -624,7 +640,7 @@ function formatRankSub(rankData) {
     return `${vr.split(' / ')[0]} (${rankData.freq.toFixed(0)}Hz)`;
 }
 
-function addHighLogItem(noteNum, freq, duration, r2, r3) {
+function addHighLogItem(noteNum, freq, duration, r2, r3, db) {
     // プレースホルダー削除
     const empty = highLogList.querySelector('.high-log-empty');
     if (empty) empty.remove();
@@ -633,6 +649,7 @@ function addHighLogItem(noteNum, freq, duration, r2, r3) {
     highLogCount.textContent = logItemCount;
 
     const vocalRange = getJapaneseVocalRange(noteNum);
+    const dbStr = (db !== undefined && db > -Infinity) ? db.toFixed(1) + ' dB' : '-- dB';
 
     const item = document.createElement('div');
     item.className = 'high-log-item';
@@ -640,6 +657,7 @@ function addHighLogItem(noteNum, freq, duration, r2, r3) {
         <div class="high-log-item-info">
             <span class="high-log-item-note">① ${vocalRange}</span>
             <span class="high-log-item-freq">${freq.toFixed(2)} Hz</span>
+            <span class="high-log-item-db">${dbStr}</span>
             <span class="high-log-item-sub">② ${formatRankSub(r2)}</span>
             <span class="high-log-item-sub">③ ${formatRankSub(r3)}</span>
         </div>
