@@ -74,6 +74,9 @@ let burstRank2 = null; // {noteNum, freq, db}
 let burstRank3 = null;
 let logItemCount = 0;
 
+let activeNotes = new Map();
+let noteMaxDurations = new Map();
+
 // === キャンバスリサイズ ===
 function resizeCanvas() {
     const rect = spectrumPanel.getBoundingClientRect();
@@ -589,24 +592,60 @@ function trackHighPitch(r1, r2, r3) {
     const hasSignal = r1 !== null && db >= -55;
     const noteNum = r1 ? r1.noteNum : -1;
     const freq = r1 ? r1.freq : 0;
+    const now = performance.now();
 
     if (hasSignal) {
+        // --- 継続時間の追跡 ---
+        const currentNotes = [];
+        if (r1) currentNotes.push(r1.noteNum);
+        if (r2) currentNotes.push(r2.noteNum);
+        if (r3) currentNotes.push(r3.noteNum);
+
+        for (const n of currentNotes) {
+            if (!activeNotes.has(n)) {
+                activeNotes.set(n, { startTime: now, lastSeen: now });
+            } else {
+                activeNotes.get(n).lastSeen = now;
+            }
+            const duration = (now - activeNotes.get(n).startTime) / 1000;
+            if (!noteMaxDurations.has(n) || noteMaxDurations.get(n) < duration) {
+                noteMaxDurations.set(n, duration);
+            }
+        }
+
+        // --- 終了したノートのクリーンアップ ---
+        for (const [n, entry] of activeNotes.entries()) {
+            if (!currentNotes.includes(n)) {
+                if (now - entry.lastSeen > 100) {
+                    activeNotes.delete(n);
+                }
+            }
+        }
+
         if (!isHighPitchActive) {
             // ピッチ検出開始 (-55dB超え)
             isHighPitchActive = true;
-            highPitchStartTime = performance.now();
+            highPitchStartTime = now;
             maxNoteInBurst = noteNum;
             maxFreqInBurst = freq;
             maxDbInBurst = db;
-            burstRank2 = r2 || null;
-            burstRank3 = r3 || null;
+            burstRank2 = r2 ? { ...r2 } : null;
+            burstRank3 = r3 ? { ...r3 } : null;
+
+            // バースト開始時にリセットして現在のノートを登録
+            activeNotes.clear();
+            noteMaxDurations.clear();
+            for (const n of currentNotes) {
+                activeNotes.set(n, { startTime: now, lastSeen: now });
+                noteMaxDurations.set(n, 0);
+            }
         } else {
             // より高い音が出たら①②③すべて更新
             if (noteNum > maxNoteInBurst) {
                 maxNoteInBurst = noteNum;
                 maxFreqInBurst = freq;
-                burstRank2 = r2 || null;
-                burstRank3 = r3 || null;
+                burstRank2 = r2 ? { ...r2 } : null;
+                burstRank3 = r3 ? { ...r3 } : null;
             }
             // dBは最大値を追跡
             if (db > maxDbInBurst) {
@@ -626,21 +665,25 @@ function finalizeHighPitchLog() {
 
     // 0.1秒以下はノイズとして無視
     if (duration > 0.1) {
-        addHighLogItem(maxNoteInBurst, maxFreqInBurst, duration, burstRank2, burstRank3, maxDbInBurst);
+        const d2 = burstRank2 ? (noteMaxDurations.get(burstRank2.noteNum) || 0) : 0;
+        const d3 = burstRank3 ? (noteMaxDurations.get(burstRank3.noteNum) || 0) : 0;
+        addHighLogItem(maxNoteInBurst, maxFreqInBurst, duration, burstRank2, d2, burstRank3, d3, maxDbInBurst);
     }
 
     isHighPitchActive = false;
     burstRank2 = null;
     burstRank3 = null;
+    activeNotes.clear();
+    noteMaxDurations.clear();
 }
 
-function formatRankSub(rankData) {
+function formatRankSub(rankData, duration) {
     if (!rankData) return '--';
     const vr = getJapaneseVocalRange(rankData.noteNum);
-    return `${vr.split(' / ')[0]} (${rankData.freq.toFixed(0)}Hz)`;
+    return `${vr.split(' / ')[0]} (${rankData.freq.toFixed(0)}Hz / ${duration.toFixed(2)}s)`;
 }
 
-function addHighLogItem(noteNum, freq, duration, r2, r3, db) {
+function addHighLogItem(noteNum, freq, duration, r2, d2, r3, d3, db) {
     // プレースホルダー削除
     const empty = highLogList.querySelector('.high-log-empty');
     if (empty) empty.remove();
@@ -658,8 +701,8 @@ function addHighLogItem(noteNum, freq, duration, r2, r3, db) {
             <span class="high-log-item-note">① ${vocalRange}</span>
             <span class="high-log-item-freq">${freq.toFixed(2)} Hz</span>
             <span class="high-log-item-db">${dbStr}</span>
-            <span class="high-log-item-sub">② ${formatRankSub(r2)}</span>
-            <span class="high-log-item-sub">③ ${formatRankSub(r3)}</span>
+            <span class="high-log-item-sub">② ${formatRankSub(r2, d2)}</span>
+            <span class="high-log-item-sub">③ ${formatRankSub(r3, d3)}</span>
         </div>
         <span class="high-log-item-duration">${duration.toFixed(2)}s</span>
     `;
